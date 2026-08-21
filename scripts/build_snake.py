@@ -125,34 +125,34 @@ def stagger(a, b, rng, incoming=None):
     grid. If the target is straight behind, it sidesteps a row first.
     """
     (x, y), (tx, ty) = a, b
-    dx = (tx > x) - (tx < x)
-    dy = (ty > y) - (ty < y)
-    out = []
-    first = True
+    out, prev = [], incoming
     while (x, y) != (tx, ty):
+        # recomputed every step — a sidestep can move y away from the target,
+        # flipping dy. Hoisting these out of the loop leaves a stale dy of 0
+        # and spins forever.
+        dx, dy = (tx > x) - (tx < x), (ty > y) - (ty < y)
         rx, ry = abs(tx - x), abs(ty - y)
+
         take_x = rng.random() < rx / (rx + ry) if (rx and ry) else bool(rx)
+        step = (dx, 0) if take_x else (0, dy)
 
-        if first and incoming:
-            step = (dx, 0) if take_x else (0, dy)
-            if step == (-incoming[0], -incoming[1]):
-                if take_x and ry:
-                    take_x = False          # go the other way instead
-                elif not take_x and rx:
-                    take_x = True
-                else:                       # nothing but backwards — dodge
-                    away = [r for r in (y - 1, y + 1) if 0 <= r < ROWS]
-                    y = rng.choice(away) if away else y
-                    out.append((x, y))
-                    first = False
-                    continue
-        first = False
+        if prev and step == (-prev[0], -prev[1]):
+            alt = (0, dy) if take_x else (dx, 0)
+            if alt != (0, 0) and alt != (-prev[0], -prev[1]):
+                step = alt              # the other axis gets us there too
+            else:
+                # target is straight behind: peel off perpendicular and come
+                # around. Picking the option that shortens the gap keeps the
+                # detour inside the grid.
+                perp = [(0, 1), (0, -1)] if prev[0] else [(1, 0), (-1, 0)]
+                opts = [s for s in perp
+                        if 0 <= y + s[1] < ROWS and s != (-prev[0], -prev[1])]
+                if opts:
+                    step = min(opts, key=lambda s: abs(tx - x - s[0]) + abs(ty - y - s[1]))
 
-        if take_x:
-            x += dx
-        else:
-            y += dy
+        x, y = x + step[0], y + step[1]
         out.append((x, y))
+        prev = step
     return out
 
 

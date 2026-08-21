@@ -5,9 +5,9 @@
 <br/><br/>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)"  srcset="https://raw.githubusercontent.com/chrisudf/chrisudf/output/snake-neon.svg">
-  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/chrisudf/chrisudf/output/snake-neon.svg">
-  <img alt="the snake eats my commits" src="https://raw.githubusercontent.com/chrisudf/chrisudf/output/snake-neon.svg" width="100%">
+  <source media="(prefers-color-scheme: dark)"  srcset="https://raw.githubusercontent.com/chrisudf/chrisudf/main/assets/snake-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/chrisudf/chrisudf/main/assets/snake.svg">
+  <img alt="the snake eats my commits" src="assets/snake-dark.svg" width="100%">
 </picture>
 
 </div>

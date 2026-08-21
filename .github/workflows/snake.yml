@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - scripts/build_snake.py
+      - .github/workflows/snake.yml
 
 jobs:
   generate:
@@ -16,19 +19,21 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: generate contribution snake svgs
-        uses: Platane/snk/svg-only@v3
-        with:
-          github_user_name: ${{ github.repository_owner }}
-          outputs: |
-            dist/snake.svg
-            dist/snake-dark.svg?palette=github-dark
-            dist/snake-neon.svg?color_snake=#ff2a6d&color_dots=#0c0c16,#0a3f31,#0e6b50,#12a874,#19f6a4
+      - uses: actions/checkout@v4
 
-      - name: push svgs to the output branch
-        uses: crazy-max/ghaction-github-pages@v5
+      - uses: actions/setup-python@v5
         with:
-          target_branch: output
-          build_dir: dist
+          python-version: "3.12"
+
+      - name: render the snake
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/build_snake.py "${{ github.repository_owner }}"
+
+      - name: commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/snake.svg assets/snake-dark.svg
+          git diff --staged --quiet || git commit -m "chore: refresh contribution snake"
+          git push

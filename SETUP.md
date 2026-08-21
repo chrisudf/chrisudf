@@ -28,22 +28,23 @@ Both SVGs are committed, so the README works the moment it lands — nothing
 ## The snake
 
 Not `Platane/snk`. That action only exposes `palette` / `color_snake` /
-`color_dots`; its snake is a fixed length at a fixed speed, so it can't grow
-or accelerate. `scripts/build_snake.py` replaces it:
+`color_dots`, and its snake is a fixed length. `scripts/build_snake.py`
+replaces it:
 
-- **grows** from 3.4 to 17 cells as it eats
-- **accelerates** from 125 ms to 26 ms per cell, ramped over the first 80% of
-  the food — so every green square it swallows makes it visibly quicker
-- runs **right to left**, newest month first. Contributions cluster in the
-  recent months; going left-to-right means 20 seconds of crawling through
-  empty cells before anything happens. Starting at the food means it's long
-  and fast by the time it hits the barren half, and the whole loop lands
-  around 15s instead of 25s.
+- **grows** from 3.4 to 13 cells as it eats, at a **constant** 74 ms per cell
+- **forages** instead of sweeping. It picks a nearby green cell, walks there
+  on a randomised staircase rather than an L, and eats anything it crosses on
+  the way. About 42% of hops change direction, so it wanders — but the target
+  choice is greedy enough that it still drifts left to right across the year.
+- never reverses into itself. A 180° turn puts the head through its own neck,
+  which is the ugliest artefact on a grid this small; when the next target is
+  straight behind, it sidesteps a row first. That cut visible self-overlaps
+  from 10 per loop to 2.
 - eaten cells flash the snake colour for one frame before going empty
 
 The body is one `<path>` with an animated `stroke-dasharray` /
-`stroke-dashoffset` rather than one element per segment — growth is the dash
-getting longer, variable speed is a non-linear offset curve. ~71 KB.
+`stroke-dashoffset` rather than one element per segment — growth is just the
+dash getting longer. ~61 KB, ~14 s per loop.
 
 ```bash
 GITHUB_TOKEN=$(gh auth token) python scripts/build_snake.py chrisudf

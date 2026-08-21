@@ -2,19 +2,22 @@
 """Render the contribution-grid snake.
 
 Platane/snk only exposes palette/color_snake/color_dots — the snake there is a
-fixed length moving at a fixed speed. This one grows a segment for every cell
-it eats and accelerates as it fills up, so it does what snk can't.
+fixed length. This one grows a segment for every cell it eats.
+
+It also doesn't sweep the grid column by column. It forages: repeatedly heads
+for a nearby green cell, wandering there on a randomised staircase instead of
+a straight line. Reads as something alive rather than a print head.
 
 The body is a single <path> with an animated stroke-dasharray/dashoffset
-rather than one element per segment: growth is just the dash getting longer,
-and variable speed is just a non-linear dashoffset curve. Keeps the file small
-and the motion exact.
+rather than one element per segment: growth is just the dash getting longer.
+Keeps the file small and the motion exact.
 
 Usage:  GITHUB_TOKEN=... python scripts/build_snake.py chrisudf
 """
 
 import json
 import os
+import random
 import sys
 import urllib.request
 
@@ -53,11 +56,12 @@ LEFT, TOP, RIGHT, BOTTOM = 34, 22, 14, 12
 ROWS = 7
 
 # --- motion ---------------------------------------------------------------
-STEP_SLOW_MS = 125      # ms per cell before it has eaten anything
-STEP_FAST_MS = 26       # floor once it's fat and quick
+STEP_MS = 74            # ms per cell, constant
 BODY_MIN = 3.4          # body length, in cells
-BODY_MAX = 17.0
-TAIL_MS = 1100          # beat at the end before the loop restarts
+BODY_MAX = 13.0         # kept modest: a longer body crosses itself on the
+                        # foraging path often enough to look wrong
+TAIL_MS = 900           # beat at the end before the loop restarts
+LOOKAHEAD = 3           # pick among the N nearest cells, not always the closest
 
 THEMES = {
     # Empty cells are white/black at low alpha rather than a solid hex, so the
@@ -106,55 +110,112 @@ def to_grid(weeks):
     return grid, len(weeks), months
 
 
-def route(cols):
-    """Boustrophedon walk over every cell, entering right and exiting left.
+def stagger(a, b, rng, incoming=None):
+    """Cells from a (exclusive) to b (inclusive) on a randomised staircase.
 
-    Right-to-left on purpose: contributions cluster in the recent months, so
-    starting at the newest column means the snake finds food immediately and
-    is already long and fast by the time it reaches the barren older half.
-    Left-to-right spends the first 20s crawling through empty cells.
+    An L-shaped move reads as a machine. Interleaving the two axes — weighted
+    by how far is left on each, so it still arrives directly — reads as
+    something slithering.
 
-    Every hop is exactly one PITCH, which makes the dash arithmetic exact.
+    `incoming` is the direction of the hop that landed on `a`. The first step
+    is never allowed to invert it: a snake that reverses walks head-first into
+    its own neck, which is both impossible and the ugliest artefact on the
+    grid. If the target is straight behind, it sidesteps a row first.
     """
+    (x, y), (tx, ty) = a, b
+    dx = (tx > x) - (tx < x)
+    dy = (ty > y) - (ty < y)
+    out = []
+    first = True
+    while (x, y) != (tx, ty):
+        rx, ry = abs(tx - x), abs(ty - y)
+        take_x = rng.random() < rx / (rx + ry) if (rx and ry) else bool(rx)
+
+        if first and incoming:
+            step = (dx, 0) if take_x else (0, dy)
+            if step == (-incoming[0], -incoming[1]):
+                if take_x and ry:
+                    take_x = False          # go the other way instead
+                elif not take_x and rx:
+                    take_x = True
+                else:                       # nothing but backwards — dodge
+                    away = [r for r in (y - 1, y + 1) if 0 <= r < ROWS]
+                    y = rng.choice(away) if away else y
+                    out.append((x, y))
+                    first = False
+                    continue
+        first = False
+
+        if take_x:
+            x += dx
+        else:
+            y += dy
+        out.append((x, y))
+    return out
+
+
+def route(cols, grid):
+    """Forage: hop between green cells, eating whatever it crosses on the way.
+
+    Nowhere near an optimal tour, and that's the point — a greedy walk with a
+    little jitter in the target choice wanders the way a snake should.
+    """
+    food = {cell for cell, lvl in grid.items() if lvl > 0}
+    # seeded off the data, so the same grid always renders the same path and
+    # the daily commit is a no-op when nothing changed
+    rng = random.Random(len(food) * 7919 + sum(c * 7 + r for c, r in sorted(food)))
+
+    if not food:
+        cells = [(c, ROWS // 2) for c in range(cols)]
+    else:
+        start = min(food, key=lambda cell: (cell[0], cell[1]))
+        cur, heading = (-1, start[1]), (1, 0)
+        cells, remaining = [cur], set(food)
+        while remaining:
+            near = sorted(remaining,
+                          key=lambda cell: (abs(cell[0] - cur[0]) + abs(cell[1] - cur[1]),
+                                            cell[0], cell[1]))[:LOOKAHEAD]
+            target = near[0] if len(near) == 1 else rng.choices(
+                near, weights=[0.62, 0.24, 0.14][:len(near)])[0]
+            leg = stagger(cur, target, rng, heading)
+            for cell in leg:
+                cells.append(cell)
+                remaining.discard(cell)     # anything crossed en route is eaten
+            if len(leg) >= 2:
+                heading = (leg[-1][0] - leg[-2][0], leg[-1][1] - leg[-2][1])
+            elif leg:
+                heading = (leg[0][0] - cur[0], leg[0][1] - cur[1])
+            cur = target
+        # leave by whichever edge is closer
+        exit_col = cols + 1 if cur[0] * 2 >= cols else -2
+        cells += stagger(cur, (exit_col, cur[1]), rng, heading)
+
     def cx(c):
         return LEFT + c * PITCH + CELL / 2
 
     def cy(r):
         return TOP + r * PITCH + CELL / 2
 
-    nodes = [(cx(cols + 1), cy(0), None), (cx(cols), cy(0), None)]
-    for i, c in enumerate(range(cols - 1, -1, -1)):
-        rows = range(ROWS) if i % 2 == 0 else range(ROWS - 1, -1, -1)
-        for r in rows:
-            nodes.append((cx(c), cy(r), (c, r)))
-    last_row = ROWS - 1 if (cols - 1) % 2 == 0 else 0
-    nodes.append((cx(-1), cy(last_row), None))
-    nodes.append((cx(-2), cy(last_row), None))
-    return nodes
+    return [(cx(c), cy(r), (c, r)) for c, r in cells]
 
 
 def timeline(nodes, grid):
-    """Per-node arrival time and body length, both driven by the eat count."""
+    """Per-node arrival time and body length. Speed is constant; only the
+    body responds to eating."""
     total_food = sum(1 for lvl in grid.values() if lvl > 0) or 1
 
-    times, bodies, eaten_at = [0.0], [BODY_MIN * PITCH], {}
-    eaten, t = 0, 0.0
-    for i in range(len(nodes) - 1):
-        cell = nodes[i][2]
-        if cell is not None and grid.get(cell, 0) > 0:
+    times, bodies, eaten_at = [], [], {}
+    eaten = 0
+    for i, (_, _, cell) in enumerate(nodes):
+        t = i * STEP_MS
+        if grid.get(cell, 0) > 0 and cell not in eaten_at:
             eaten += 1
             eaten_at[cell] = t
-        # accelerate over the first 80% of the food, then hold at the floor
-        ramp = min(1.0, eaten / (total_food * 0.8))
-        t += STEP_SLOW_MS - (STEP_SLOW_MS - STEP_FAST_MS) * ramp
         times.append(t)
-        bodies.append((BODY_MIN + (BODY_MAX - BODY_MIN) * ramp) * PITCH)
+        grown = min(1.0, eaten / total_food)
+        bodies.append((BODY_MIN + (BODY_MAX - BODY_MIN) * grown) * PITCH)
 
-    # the head can still be mid-grid on the last node; catch any final cell
-    cell = nodes[-1][2]
-    if cell is not None and grid.get(cell, 0) > 0:
-        eaten_at[cell] = t
-    return times, bodies, eaten_at, t + TAIL_MS
+    return times, bodies, eaten_at, times[-1] + TAIL_MS
 
 
 def fmt(x):
@@ -167,7 +228,7 @@ def build(login, token, theme_name):
 
     weeks = fetch(login, token)
     grid, cols, months = to_grid(weeks)
-    nodes = route(cols)
+    nodes = route(cols, grid)
     times, bodies, eaten_at, total_ms = timeline(nodes, grid)
 
     W = LEFT + cols * PITCH - GAP + RIGHT
@@ -239,12 +300,12 @@ def build(login, token, theme_name):
       f'keyTimes="{";".join(keys)}" dur="{dur:.2f}s" repeatCount="indefinite"/>')
     a('</path>')
 
-    # ---- eyes, riding the same path at the same speed
-    kp = [fmt(min(1.0, i * PITCH / path_len)) for i in range(len(nodes))] + ["1"]
+    # ---- eyes, riding the same path. Constant speed and equal-length hops
+    # mean distance is linear in time, so two keyPoints cover the whole walk.
     a('<g fill="#ffffff" opacity=".92">'
       f'<circle cx="1.2" cy="-2.6" r="1.25"/><circle cx="1.2" cy="2.6" r="1.25"/>'
       f'<animateMotion dur="{dur:.2f}s" repeatCount="indefinite" rotate="auto" '
-      f'keyPoints="{";".join(kp)}" keyTimes="{";".join(keys)}" calcMode="linear">'
+      f'keyPoints="0;1;1" keyTimes="0;{fmt(kt(times[-1]))};1" calcMode="linear">'
       f'<mpath href="#route"/></animateMotion></g>')
 
     a('</svg>')

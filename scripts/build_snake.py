@@ -56,7 +56,7 @@ LEFT, TOP, RIGHT, BOTTOM = 34, 22, 14, 12
 ROWS = 7
 
 # --- motion ---------------------------------------------------------------
-STEP_MS = 74            # ms per cell, constant
+STEP_MS = 105           # ms per cell, constant
 BODY_MIN = 3.4          # body length, in cells
 BODY_MAX = 13.0         # kept modest: a longer body crosses itself on the
                         # foraging path often enough to look wrong
@@ -112,48 +112,74 @@ def to_grid(weeks):
     return grid, len(weeks), months
 
 
-def stagger(a, b, rng, incoming=None):
-    """Cells from a (exclusive) to b (inclusive) on a randomised staircase.
+DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
-    An L-shaped move reads as a machine. Interleaving the two axes — weighted
-    by how far is left on each, so it still arrives directly — reads as
-    something slithering.
 
-    `incoming` is the direction of the hop that landed on `a`. The first step
-    is never allowed to invert it: a snake that reverses walks head-first into
-    its own neck, which is both impossible and the ugliest artefact on the
-    grid. If the target is straight behind, it sidesteps a row first.
+def body_span(eaten, total_food):
+    """Body length in cells after `eaten` bites."""
+    return BODY_MIN + (BODY_MAX - BODY_MIN) * min(1.0, eaten / total_food)
+
+
+def open_space(start, seen, idx, body, cols, limit):
+    """How many cells are reachable from `start` without touching the body.
+
+    Stops counting at `limit` — we only need to know whether there is room to
+    fit, not the exact size of the pocket.
     """
-    (x, y), (tx, ty) = a, b
-    out, prev = [], incoming
-    while (x, y) != (tx, ty):
-        # recomputed every step — a sidestep can move y away from the target,
-        # flipping dy. Hoisting these out of the loop leaves a stale dy of 0
-        # and spins forever.
-        dx, dy = (tx > x) - (tx < x), (ty > y) - (ty < y)
-        rx, ry = abs(tx - x), abs(ty - y)
+    stack, vis, n = [start], {start}, 0
+    while stack and n < limit:
+        x, y = stack.pop()
+        n += 1
+        for s in DIRS:
+            nxt = (x + s[0], y + s[1])
+            if nxt in vis or not (0 <= nxt[1] < ROWS and -1 <= nxt[0] < cols):
+                continue
+            if idx + 1 - seen.get(nxt, -1 << 30) <= body:
+                continue
+            vis.add(nxt)
+            stack.append(nxt)
+    return n
 
-        take_x = rng.random() < rx / (rx + ry) if (rx and ry) else bool(rx)
-        step = (dx, 0) if take_x else (0, dy)
 
-        if prev and step == (-prev[0], -prev[1]):
-            alt = (0, dy) if take_x else (dx, 0)
-            if alt != (0, 0) and alt != (-prev[0], -prev[1]):
-                step = alt              # the other axis gets us there too
-            else:
-                # target is straight behind: peel off perpendicular and come
-                # around. Picking the option that shortens the gap keeps the
-                # detour inside the grid.
-                perp = [(0, 1), (0, -1)] if prev[0] else [(1, 0), (-1, 0)]
-                opts = [s for s in perp
-                        if 0 <= y + s[1] < ROWS and s != (-prev[0], -prev[1])]
-                if opts:
-                    step = min(opts, key=lambda s: abs(tx - x - s[0]) + abs(ty - y - s[1]))
+def choose_step(cur, target, heading, seen, idx, body, cols, rng):
+    """One hop toward `target` that the body isn't already lying on.
 
-        x, y = x + step[0], y + step[1]
-        out.append((x, y))
-        prev = step
-    return out
+    A cell last entered at step `i` is still under the body at step `j` when
+    `j - i <= body`, so self-collision is an exact test, not a heuristic —
+    which is what banning reversals alone failed to catch.
+    """
+    x, y = cur
+    tx, ty = target
+    opts = []
+    for s in DIRS:
+        if heading and s == (-heading[0], -heading[1]):
+            continue                                    # no 180° turns
+        nx, ny = x + s[0], y + s[1]
+        if not (0 <= ny < ROWS and -1 <= nx < cols):
+            continue
+        age = idx + 1 - seen.get((nx, ny), -1 << 30)
+        opts.append((age > body, abs(tx - nx) + abs(ty - ny), age, s))
+
+    if not opts:                                        # boxed in; back out
+        return (-heading[0], -heading[1]) if heading else (1, 0)
+
+    # clear cells first, then whichever is closest to vacating
+    free = [o for o in opts if o[0]]
+
+    # of those, drop any that lead into a pocket too small to hold the body —
+    # entering one means the only way out later is through itself
+    if len(free) > 1:
+        room = int(body) + 3
+        roomy = [o for o in free
+                 if open_space((x + o[3][0], y + o[3][1]), seen, idx, body, cols, room) >= room]
+        free = roomy or free
+
+    pool = free or sorted(opts, key=lambda o: -o[2])[:1]
+
+    best = min(o[1] for o in pool)
+    # ties are the two axes that both close the gap — picking between them at
+    # random is what gives the staircase its wander
+    return rng.choice([o[3] for o in pool if o[1] == best])
 
 
 def route(cols, grid):
@@ -170,24 +196,44 @@ def route(cols, grid):
     if not food:
         cells = [(c, ROWS // 2) for c in range(cols)]
     else:
+        total = len(food)
         start = min(food, key=lambda cell: (cell[0], cell[1]))
         cur, heading = (-1, start[1]), (1, 0)
-        cells, remaining = [cur], set(food)
-        while remaining:
+        cells, remaining, seen = [cur], set(food), {cur: 0}
+        eaten = 0
+
+        deferred, slack, cap = [], 1, 24 * ROWS * cols
+        while remaining and len(cells) < cap:
             near = sorted(remaining,
                           key=lambda cell: (abs(cell[0] - cur[0]) + abs(cell[1] - cur[1]),
                                             cell[0], cell[1]))[:LOOKAHEAD]
             target = near[0] if len(near) == 1 else rng.choices(
                 near, weights=[0.62, 0.24, 0.14][:len(near)])[0]
-            leg = stagger(cur, target, rng, heading)
-            for cell in leg:
-                cells.append(cell)
-                remaining.discard(cell)     # anything crossed en route is eaten
-            if len(leg) >= 2:
-                heading = (leg[-1][0] - leg[-2][0], leg[-1][1] - leg[-2][1])
-            elif leg:
-                heading = (leg[0][0] - cur[0], leg[0][1] - cur[1])
-            cur = target
+
+            # detours around its own body cost extra hops
+            budget = slack * (4 * (abs(target[0] - cur[0])
+                                   + abs(target[1] - cur[1])) + 24)
+            while cur != target and budget:
+                step = choose_step(cur, target, heading, seen, len(cells) - 1,
+                                   body_span(eaten, total), cols, rng)
+                cur = (cur[0] + step[0], cur[1] + step[1])
+                heading = step
+                cells.append(cur)
+                seen[cur] = len(cells) - 1
+                if cur in remaining:        # anything crossed en route is eaten
+                    remaining.discard(cur)
+                    eaten += 1
+                budget -= 1
+
+            if cur != target:
+                # walled off by its own body. Park it and move on — leaving it
+                # in `remaining` means the next pass picks the same unreachable
+                # cell and loops forever.
+                remaining.discard(target)
+                deferred.append(target)
+
+            if not remaining and deferred and slack == 1:
+                remaining, deferred, slack = set(deferred), [], 4
         # stops on the last bite — walking out to the wall afterwards is dead
         # time, so the loop fades and restarts from there instead
 
@@ -213,8 +259,7 @@ def timeline(nodes, grid):
             eaten += 1
             eaten_at[cell] = t
         times.append(t)
-        grown = min(1.0, eaten / total_food)
-        bodies.append((BODY_MIN + (BODY_MAX - BODY_MIN) * grown) * PITCH)
+        bodies.append(body_span(eaten, total_food) * PITCH)
 
     return times, bodies, eaten_at, times[-1] + HOLD_MS + FADE_MS + REST_MS
 

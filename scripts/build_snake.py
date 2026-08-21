@@ -120,7 +120,7 @@ def body_span(eaten, total_food):
     return BODY_MIN + (BODY_MAX - BODY_MIN) * min(1.0, eaten / total_food)
 
 
-def open_space(start, seen, idx, body, cols, limit):
+def open_space(start, seen, idx, body, walkable, limit):
     """How many cells are reachable from `start` without touching the body.
 
     Stops counting at `limit` — we only need to know whether there is room to
@@ -132,7 +132,7 @@ def open_space(start, seen, idx, body, cols, limit):
         n += 1
         for s in DIRS:
             nxt = (x + s[0], y + s[1])
-            if nxt in vis or not (0 <= nxt[1] < ROWS and -1 <= nxt[0] < cols):
+            if nxt in vis or nxt not in walkable:
                 continue
             if idx + 1 - seen.get(nxt, -1 << 30) <= body:
                 continue
@@ -141,7 +141,7 @@ def open_space(start, seen, idx, body, cols, limit):
     return n
 
 
-def choose_step(cur, target, heading, seen, idx, body, cols, rng):
+def choose_step(cur, target, heading, seen, idx, body, walkable, rng):
     """One hop toward `target` that the body isn't already lying on.
 
     A cell last entered at step `i` is still under the body at step `j` when
@@ -154,11 +154,11 @@ def choose_step(cur, target, heading, seen, idx, body, cols, rng):
     for s in DIRS:
         if heading and s == (-heading[0], -heading[1]):
             continue                                    # no 180° turns
-        nx, ny = x + s[0], y + s[1]
-        if not (0 <= ny < ROWS and -1 <= nx < cols):
+        nxt = (x + s[0], y + s[1])
+        if nxt not in walkable:
             continue
-        age = idx + 1 - seen.get((nx, ny), -1 << 30)
-        opts.append((age > body, abs(tx - nx) + abs(ty - ny), age, s))
+        age = idx + 1 - seen.get(nxt, -1 << 30)
+        opts.append((age > body, abs(tx - nxt[0]) + abs(ty - nxt[1]), age, s))
 
     if not opts:                                        # boxed in; back out
         return (-heading[0], -heading[1]) if heading else (1, 0)
@@ -171,7 +171,8 @@ def choose_step(cur, target, heading, seen, idx, body, cols, rng):
     if len(free) > 1:
         room = int(body) + 3
         roomy = [o for o in free
-                 if open_space((x + o[3][0], y + o[3][1]), seen, idx, body, cols, room) >= room]
+                 if open_space((x + o[3][0], y + o[3][1]), seen, idx, body,
+                               walkable, room) >= room]
         free = roomy or free
 
     pool = free or sorted(opts, key=lambda o: -o[2])[:1]
@@ -197,6 +198,11 @@ def route(cols, grid):
         cells = [(c, ROWS // 2) for c in range(cols)]
     else:
         total = len(food)
+        # only cells that actually have a square, plus the off-grid entry
+        # column. The final week is a partial one — the days after today have
+        # no square drawn, and the snake slithering over that blank corner
+        # looks like a rendering fault.
+        walkable = set(grid) | {(-1, r) for r in range(ROWS)}
         start = min(food, key=lambda cell: (cell[0], cell[1]))
         cur, heading = (-1, start[1]), (1, 0)
         cells, remaining, seen = [cur], set(food), {cur: 0}
@@ -215,7 +221,7 @@ def route(cols, grid):
                                    + abs(target[1] - cur[1])) + 24)
             while cur != target and budget:
                 step = choose_step(cur, target, heading, seen, len(cells) - 1,
-                                   body_span(eaten, total), cols, rng)
+                                   body_span(eaten, total), walkable, rng)
                 cur = (cur[0] + step[0], cur[1] + step[1])
                 heading = step
                 cells.append(cur)

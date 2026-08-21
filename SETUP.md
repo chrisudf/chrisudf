@@ -44,6 +44,10 @@ replaces it:
   rather than a heuristic — every hop is filtered against it, and 180° turns
   fall out for free. It also refuses to enter a pocket too small to hold the
   body, which is what stops it walling itself in at high contribution density.
+- **stays on drawn squares.** The final week is partial — the days after today
+  have no square — and the walkable set is the grid itself, not a bounding
+  box, so the snake never slithers across that blank corner. Depending on the
+  weekday that was up to 6 visible steps over nothing.
 - eaten cells flash the snake colour for one frame before going empty
 
 The body is one `<path>` with an animated `stroke-dasharray` /
@@ -58,11 +62,26 @@ Current numbers: 176 steps, ~19 s per loop, 0 self-collisions, 0 reversals,
 39% of hops change direction. `STEP_MS` is the pace dial — lower it to tighten
 the loop.
 
-The path planner is stress-tested against 298 synthetic grids from 2% to 100%
-density; collisions, reversals, out-of-bounds and uneaten cells are all zero
-across every one, and no grid takes more than 50 ms to route. Worth re-running
-that after any change to `choose_step` — an unreachable target used to spin
-forever and it took out a 5-minute Actions job.
+The path planner is stress-tested against ~300 synthetic grids: 20-54 columns,
+2% to 100% density, ragged final weeks. Off-grid steps are zero everywhere and
+nothing hangs; collisions/reversals/uneaten peak at 1 in the pathological
+100%-density corner cases and are 0 on real data for all seven weekdays. Worth
+re-running after any change to `choose_step` — an unreachable target used to
+spin forever and it took out a 5-minute Actions job.
+
+## Width and date range
+
+The API returns a rolling 12 months ending today, cut into weeks that start on
+Sunday, so nothing needs pinning:
+
+- **Columns** are 53 or 54 depending on how the year falls across Sundays,
+  giving an SVG 787 or 801 px wide. The README sets `width="100%"`, so the
+  change is invisible.
+- **Month labels** are derived, not hardcoded: a week gets one when its first
+  day lands in the first 7 days of a month it hasn't labelled yet. Simulated
+  over 400 consecutive days that is always exactly 12 labels with no repeats,
+  scrolling one position as the months roll over.
+- **The first column** is a full week; only the **last** is partial.
 
 ### Colours
 

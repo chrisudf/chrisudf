@@ -32,6 +32,9 @@ Not `Platane/snk`. That action only exposes `palette` / `color_snake` /
 replaces it:
 
 - **grows** from 3.4 to 13 cells as it eats, at a **constant** 74 ms per cell
+- **restarts on the last bite.** It doesn't walk out to the wall afterwards —
+  that was three dead seconds per loop. It holds, fades out over 0.4 s, and
+  the next round begins. ~12.5 s total.
 - **forages** instead of sweeping. It picks a nearby green cell, walks there
   on a randomised staircase rather than an L, and eats anything it crosses on
   the way. About 42% of hops change direction, so it wanders — but the target
@@ -55,8 +58,20 @@ GITHUB_TOKEN=$(gh auth token) python scripts/build_snake.py chrisudf
 Grid colours are GitHub's own dark-mode greens (`#0e4429` `#006d32` `#26a641`
 `#39d353`). Empty cells are white at 5.5% alpha rather than a solid hex, so
 the grid reads correctly on both `#0d1117` (dark) and `#22272e` (dark
-dimmed) without needing to know which theme you're on. Snake is `#ff2a6d`,
-picked up from the banner; change `THEMES` at the top of the script.
+dimmed) without needing to know which theme you're on.
+
+Snake is `#00f0ff` on dark (`#0092b8` on light, since full cyan is invisible
+on white) — the banner's primary accent, so the two graphics read as one
+system. To try another, either edit `THEMES` or pass a flag:
+
+```bash
+python scripts/build_snake.py chrisudf --snake='#ff2a6d'
+```
+
+Candidates worth knowing: `#ff2a6d` magenta separates from green best (it's
+nearly complementary), `#a371f7` is GitHub's own purple and the calmest
+option, `#fcee0a` is the loudest. Avoid anything in the green family — it
+reads as food.
 
 ## Editing the banner
 

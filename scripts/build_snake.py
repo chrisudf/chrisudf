@@ -60,8 +60,10 @@ STEP_MS = 74            # ms per cell, constant
 BODY_MIN = 3.4          # body length, in cells
 BODY_MAX = 13.0         # kept modest: a longer body crosses itself on the
                         # foraging path often enough to look wrong
-TAIL_MS = 900           # beat at the end before the loop restarts
 LOOKAHEAD = 3           # pick among the N nearest cells, not always the closest
+
+# end of loop: hold on the last bite, fade the snake out, blank beat, restart
+HOLD_MS, FADE_MS, REST_MS = 340, 420, 260
 
 THEMES = {
     # Empty cells are white/black at low alpha rather than a solid hex, so the
@@ -69,13 +71,13 @@ THEMES = {
     "dark": {
         "empty": ("#ffffff", 0.055),
         "levels": ["#0e4429", "#006d32", "#26a641", "#39d353"],
-        "snake": "#ff2a6d",
+        "snake": "#00f0ff",
         "label": "#8b949e",
     },
     "light": {
         "empty": ("#000000", 0.055),
         "levels": ["#9be9a8", "#40c463", "#30a14e", "#216e39"],
-        "snake": "#ff2a6d",
+        "snake": "#0092b8",
         "label": "#57606a",
     },
 }
@@ -186,9 +188,8 @@ def route(cols, grid):
             elif leg:
                 heading = (leg[0][0] - cur[0], leg[0][1] - cur[1])
             cur = target
-        # leave by whichever edge is closer
-        exit_col = cols + 1 if cur[0] * 2 >= cols else -2
-        cells += stagger(cur, (exit_col, cur[1]), rng, heading)
+        # stops on the last bite — walking out to the wall afterwards is dead
+        # time, so the loop fades and restarts from there instead
 
     def cx(c):
         return LEFT + c * PITCH + CELL / 2
@@ -215,18 +216,20 @@ def timeline(nodes, grid):
         grown = min(1.0, eaten / total_food)
         bodies.append((BODY_MIN + (BODY_MAX - BODY_MIN) * grown) * PITCH)
 
-    return times, bodies, eaten_at, times[-1] + TAIL_MS
+    return times, bodies, eaten_at, times[-1] + HOLD_MS + FADE_MS + REST_MS
 
 
 def fmt(x):
     return f"{x:.2f}".rstrip("0").rstrip(".")
 
 
-def build(login, token, theme_name):
-    th = THEMES[theme_name]
+def build(login, token, theme_name, weeks=None, snake=None):
+    th = dict(THEMES[theme_name])
+    if snake:
+        th["snake"] = snake
     empty_hex, empty_op = th["empty"]
 
-    weeks = fetch(login, token)
+    weeks = weeks or fetch(login, token)
     grid, cols, months = to_grid(weeks)
     nodes = route(cols, grid)
     times, bodies, eaten_at, total_ms = timeline(nodes, grid)
@@ -291,6 +294,15 @@ def build(login, token, theme_name):
     # hold through the tail beat so the loop doesn't snap
     offsets.append(offsets[-1]); dashes.append(dashes[-1]); keys.append("1")
 
+    # the loop ends on the last bite, so the snake dissolves rather than
+    # snapping away mid-grid when the animation restarts
+    fade_a, fade_b = kt(times[-1] + HOLD_MS), kt(times[-1] + HOLD_MS + FADE_MS)
+
+    def fade(peak):
+        return (f'<animate attributeName="opacity" values="{peak};{peak};0;0" '
+                f'keyTimes="0;{fmt(fade_a)};{fmt(fade_b)};1" dur="{dur:.2f}s" '
+                f'repeatCount="indefinite"/>')
+
     a(f'<path id="route" d="{d}" fill="none" stroke="{th["snake"]}" stroke-width="{CELL}" '
       f'stroke-linecap="round" stroke-linejoin="round" filter="url(#snakeglow)" '
       f'stroke-dasharray="{dashes[0]}" stroke-dashoffset="{offsets[0]}">')
@@ -298,12 +310,14 @@ def build(login, token, theme_name):
       f'keyTimes="{";".join(keys)}" dur="{dur:.2f}s" repeatCount="indefinite"/>')
     a(f'<animate attributeName="stroke-dasharray" values="{";".join(dashes)}" '
       f'keyTimes="{";".join(keys)}" dur="{dur:.2f}s" repeatCount="indefinite"/>')
+    a(fade(1))
     a('</path>')
 
     # ---- eyes, riding the same path. Constant speed and equal-length hops
     # mean distance is linear in time, so two keyPoints cover the whole walk.
-    a('<g fill="#ffffff" opacity=".92">'
+    a('<g fill="#ffffff">'
       f'<circle cx="1.2" cy="-2.6" r="1.25"/><circle cx="1.2" cy="2.6" r="1.25"/>'
+      f'{fade(0.92)}'
       f'<animateMotion dur="{dur:.2f}s" repeatCount="indefinite" rotate="auto" '
       f'keyPoints="0;1;1" keyTimes="0;{fmt(kt(times[-1]))};1" calcMode="linear">'
       f'<mpath href="#route"/></animateMotion></g>')
@@ -313,15 +327,18 @@ def build(login, token, theme_name):
 
 
 def main():
-    login = sys.argv[1] if len(sys.argv) > 1 else "chrisudf"
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = dict(a.lstrip("-").split("=", 1) for a in sys.argv[1:] if a.startswith("--"))
+    login = args[0] if args else "chrisudf"
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not token:
         raise SystemExit("set GITHUB_TOKEN (or GH_TOKEN)")
 
+    weeks = fetch(login, token)
     os.makedirs(os.path.join(root, "assets"), exist_ok=True)
     for theme, name in (("dark", "snake-dark.svg"), ("light", "snake.svg")):
-        svg = build(login, token, theme)
+        svg = build(login, token, theme, weeks=weeks, snake=flags.get("snake"))
         out = os.path.join(root, "assets", name)
         with open(out, "w", encoding="utf-8", newline="\n") as f:
             f.write(svg + "\n")

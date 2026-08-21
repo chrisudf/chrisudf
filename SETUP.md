@@ -52,7 +52,15 @@ replaces it:
 
 The body is one `<path>` with an animated `stroke-dasharray` /
 `stroke-dashoffset` rather than one element per segment — growth is just the
-dash getting longer. ~61 KB, ~14 s per loop.
+dash getting longer. ~64 KB.
+
+**keyTimes need six decimals, not two.** Coordinates all land on a half-pixel
+so `fmt()` rounds them to 2dp, but a ~176-step loop puts consecutive keyTimes
+0.0057 apart — finer than a 0.01 grid. Rounding them the same way collapsed 80
+of the 176 onto their neighbour, so those steps took zero time: the body
+teleported two cells and stalled while the eyes, which interpolate smoothly
+between two keyPoints, glided ahead of it. It also widened the eat flash from
+155 ms to 194 ms. Times go through `ftime()`; keep them there.
 
 ```bash
 GITHUB_TOKEN=$(gh auth token) python scripts/build_snake.py chrisudf

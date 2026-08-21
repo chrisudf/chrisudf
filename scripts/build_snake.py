@@ -271,7 +271,19 @@ def timeline(nodes, grid):
 
 
 def fmt(x):
+    """Coordinates. Everything lands on a half-pixel, so 2dp is exact."""
     return f"{x:.2f}".rstrip("0").rstrip(".")
+
+
+def ftime(x):
+    """keyTimes need far more precision than coordinates.
+
+    A loop of ~176 steps puts consecutive keyTimes 0.0057 apart. Rounded to
+    2dp — a 0.01 grid — 80 of them collapsed onto their neighbour, so those
+    steps took zero time: the body teleported two cells then stalled while the
+    eyes, which interpolate smoothly, glided on ahead of it.
+    """
+    return f"{x:.6f}".rstrip("0").rstrip(".")
 
 
 def build(login, token, theme_name, weeks=None, snake=None):
@@ -325,10 +337,10 @@ def build(login, token, theme_name, weeks=None, snake=None):
             t1 = min(1.0, t0 + 0.008)
             a(f'<animate attributeName="fill" calcMode="discrete" '
               f'values="{fill};{th["snake"]};{empty_hex};{empty_hex}" '
-              f'keyTimes="0;{fmt(t0)};{fmt(t1)};1" dur="{dur:.2f}s" repeatCount="indefinite"/>')
+              f'keyTimes="0;{ftime(t0)};{ftime(t1)};1" dur="{dur:.2f}s" repeatCount="indefinite"/>')
             a(f'<animate attributeName="fill-opacity" calcMode="discrete" '
               f'values="1;1;{empty_op};{empty_op}" '
-              f'keyTimes="0;{fmt(t0)};{fmt(t1)};1" dur="{dur:.2f}s" repeatCount="indefinite"/>')
+              f'keyTimes="0;{ftime(t0)};{ftime(t1)};1" dur="{dur:.2f}s" repeatCount="indefinite"/>')
         a('</rect>')
     a('</g>')
 
@@ -341,7 +353,7 @@ def build(login, token, theme_name, weeks=None, snake=None):
         progress = i * PITCH
         offsets.append(fmt(bodies[i] - progress))
         dashes.append(f"{fmt(bodies[i])} {fmt(path_len + BODY_MAX * PITCH)}")
-        keys.append(fmt(kt(times[i])))
+        keys.append(ftime(kt(times[i])))
     # hold through the tail beat so the loop doesn't snap
     offsets.append(offsets[-1]); dashes.append(dashes[-1]); keys.append("1")
 
@@ -351,7 +363,7 @@ def build(login, token, theme_name, weeks=None, snake=None):
 
     def fade(peak):
         return (f'<animate attributeName="opacity" values="{peak};{peak};0;0" '
-                f'keyTimes="0;{fmt(fade_a)};{fmt(fade_b)};1" dur="{dur:.2f}s" '
+                f'keyTimes="0;{ftime(fade_a)};{ftime(fade_b)};1" dur="{dur:.2f}s" '
                 f'repeatCount="indefinite"/>')
 
     a(f'<path id="route" d="{d}" fill="none" stroke="{th["snake"]}" stroke-width="{CELL}" '
@@ -370,7 +382,7 @@ def build(login, token, theme_name, weeks=None, snake=None):
       f'<circle cx="1.2" cy="-2.6" r="1.25"/><circle cx="1.2" cy="2.6" r="1.25"/>'
       f'{fade(0.92)}'
       f'<animateMotion dur="{dur:.2f}s" repeatCount="indefinite" rotate="auto" '
-      f'keyPoints="0;1;1" keyTimes="0;{fmt(kt(times[-1]))};1" calcMode="linear">'
+      f'keyPoints="0;1;1" keyTimes="0;{ftime(kt(times[-1]))};1" calcMode="linear">'
       f'<mpath href="#route"/></animateMotion></g>')
 
     a('</svg>')

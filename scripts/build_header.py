@@ -36,8 +36,10 @@ NEON    = "#19f6a4"
 MUTED   = "#6b7a8d"
 
 NAME    = "CHENG QIU"
-EYEBROW = "SYSTEM ONLINE"
-STATUS  = "BRISBANE // UTC+10"
+# lifted from cq-portfolio's hero eyebrow, minus the "Night City" — 夜之城
+# in the role line below already says it
+EYEBROW = "FREELANCE · CONSULTING · REMOTE"
+STATUS  = "UTC+10"
 ROLE_A  = "QUANT TOOLING"
 ROLE_B  = "APPLIED AI"
 ROLE_C  = "夜之城"
@@ -196,7 +198,9 @@ def build():
       f'letter-spacing="4">{EYEBROW}</text>')
 
     # ---- status pill (.status + .dot)
-    pill_w = int(len(STATUS) * 11 * ADV + 34)
+    # advance + letter-spacing per glyph, then 10px of air each side plus the
+    # dot. Leaving the letter-spacing out made the label overflow the border.
+    pill_w = int(len(STATUS) * (11 * ADV + 1) + 34)
     pill_x = W - 46 - pill_w
     a(f'<rect x="{pill_x}" y="34" width="{pill_w}" height="22" rx="2" '
       f'fill="{NEON}" fill-opacity=".06" stroke="{NEON}" stroke-opacity=".4"/>')

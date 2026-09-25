@@ -938,12 +938,12 @@
 <animate attributeName="fill" calcMode="discrete" values="#30a14e;#0092b8;#000000;#000000" keyTimes="0;0.820822;0.828822;1" dur="27.38s" repeatCount="indefinite"/>
 <animate attributeName="fill-opacity" calcMode="discrete" values="1;1;0.055;0.055" keyTimes="0;0.820822;0.828822;1" dur="27.38s" repeatCount="indefinite"/>
 </rect>
-<rect x="762" y="78" width="11" height="11" rx="2" fill="#9be9a8" fill-opacity="1">
-<animate attributeName="fill" calcMode="discrete" values="#9be9a8;#0092b8;#000000;#000000" keyTimes="0;0.671233;0.679233;1" dur="27.38s" repeatCount="indefinite"/>
+<rect x="762" y="78" width="11" height="11" rx="2" fill="#40c463" fill-opacity="1">
+<animate attributeName="fill" calcMode="discrete" values="#40c463;#0092b8;#000000;#000000" keyTimes="0;0.671233;0.679233;1" dur="27.38s" repeatCount="indefinite"/>
 <animate attributeName="fill-opacity" calcMode="discrete" values="1;1;0.055;0.055" keyTimes="0;0.671233;0.679233;1" dur="27.38s" repeatCount="indefinite"/>
 </rect>
-<rect x="762" y="92" width="11" height="11" rx="2" fill="#9be9a8" fill-opacity="1">
-<animate attributeName="fill" calcMode="discrete" values="#9be9a8;#0092b8;#000000;#000000" keyTimes="0;0.667397;0.675397;1" dur="27.38s" repeatCount="indefinite"/>
+<rect x="762" y="92" width="11" height="11" rx="2" fill="#30a14e" fill-opacity="1">
+<animate attributeName="fill" calcMode="discrete" values="#30a14e;#0092b8;#000000;#000000" keyTimes="0;0.667397;0.675397;1" dur="27.38s" repeatCount="indefinite"/>
 <animate attributeName="fill-opacity" calcMode="discrete" values="1;1;0.055;0.055" keyTimes="0;0.667397;0.675397;1" dur="27.38s" repeatCount="indefinite"/>
 </rect>
 </g>

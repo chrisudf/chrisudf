@@ -974,8 +974,8 @@
 <animate attributeName="fill" calcMode="discrete" values="#26a641;#00f0ff;#ffffff;#ffffff" keyTimes="0;0.771903;0.779903;1" dur="29.79s" repeatCount="indefinite"/>
 <animate attributeName="fill-opacity" calcMode="discrete" values="1;1;0.055;0.055" keyTimes="0;0.771903;0.779903;1" dur="29.79s" repeatCount="indefinite"/>
 </rect>
-<rect x="762" y="92" width="11" height="11" rx="2" fill="#0e4429" fill-opacity="1">
-<animate attributeName="fill" calcMode="discrete" values="#0e4429;#00f0ff;#ffffff;#ffffff" keyTimes="0;0.888218;0.896218;1" dur="29.79s" repeatCount="indefinite"/>
+<rect x="762" y="92" width="11" height="11" rx="2" fill="#006d32" fill-opacity="1">
+<animate attributeName="fill" calcMode="discrete" values="#006d32;#00f0ff;#ffffff;#ffffff" keyTimes="0;0.888218;0.896218;1" dur="29.79s" repeatCount="indefinite"/>
 <animate attributeName="fill-opacity" calcMode="discrete" values="1;1;0.055;0.055" keyTimes="0;0.888218;0.896218;1" dur="29.79s" repeatCount="indefinite"/>
 </rect>
 </g>

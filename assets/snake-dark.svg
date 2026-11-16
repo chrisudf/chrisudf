@@ -924,8 +924,8 @@
 </rect>
 <rect x="706" y="78" width="11" height="11" rx="2" fill="#ffffff" fill-opacity="0.055">
 </rect>
-<rect x="706" y="92" width="11" height="11" rx="2" fill="#0e4429" fill-opacity="1">
-<animate attributeName="fill" calcMode="discrete" values="#0e4429;#00f0ff;#ffffff;#ffffff" keyTimes="0;0.64149;0.64949;1" dur="29.79s" repeatCount="indefinite"/>
+<rect x="706" y="92" width="11" height="11" rx="2" fill="#006d32" fill-opacity="1">
+<animate attributeName="fill" calcMode="discrete" values="#006d32;#00f0ff;#ffffff;#ffffff" keyTimes="0;0.64149;0.64949;1" dur="29.79s" repeatCount="indefinite"/>
 <animate attributeName="fill-opacity" calcMode="discrete" values="1;1;0.055;0.055" keyTimes="0;0.64149;0.64949;1" dur="29.79s" repeatCount="indefinite"/>
 </rect>
 <rect x="706" y="106" width="11" height="11" rx="2" fill="#ffffff" fill-opacity="0.055">
